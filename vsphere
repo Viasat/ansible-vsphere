@@ -424,6 +424,8 @@ class Vsphere(object):
         if self._wait_for_shutdown(vm):
             return False, dict(changed = True, msg = 'Successfully shutdown %s' % vm.name)
         else:
+            if force:
+                return self.stop(vm)
             return True, dict(msg = 'Failed to shutdown %s' % vm.name)
 
     def _wait_for_shutdown(self, vm):
