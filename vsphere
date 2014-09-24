@@ -367,6 +367,9 @@ class Vsphere(object):
              'name': 'vmname',
              'numCPUs': 1}
         """
+        if not isinstance(spec, dict):
+            return spec
+
         for spec_name, spec_value in spec.iteritems():
             # Ansible returns numbers as unicode
             try:
