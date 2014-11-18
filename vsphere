@@ -750,7 +750,7 @@ class Vsphere(object):
             failed = True
             msg = 'Failed to download file from guest.'
 
-        return failed, dict(changed = True, msg = res.text)
+        return failed, dict(changed = True, msg = msg)
 
 
 def core(module):
@@ -818,7 +818,7 @@ def core(module):
         if put_file is not None:
             return v.put_file_in_guest(put_file, spec)
         elif get_file is not None:
-            return v.get_file_in_guest(put_file, spec)
+            return v.get_file_in_guest(get_file, spec)
         else:
             return v.guest_operation(guest_operations_manager, spec)
 
