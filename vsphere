@@ -311,7 +311,7 @@ class Vsphere(object):
         try:
             self.si = SmartConnect(host = self.vsphere_host, user = login_username, pwd = login_password)
         except:
-            self.module.fail_json(msg = 'Could not connect to host %s' % self.host)
+            self.module.fail_json(msg = 'Could not connect to host %s' % self.vsphere_host)
 
         atexit.register(Disconnect, self.si)
 
