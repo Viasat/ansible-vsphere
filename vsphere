@@ -451,7 +451,11 @@ class Vsphere(object):
             else:
                 return True, dict(msg='Cannot shutdown %s. Guest Tools are not currently running.')
 
-        vm.ShutdownGuest()
+        try:
+            vm.ShutdownGuest()
+        except vim.fault.InvalidPowerState:
+            return False, dict(changed = False, msg = '%s is already powered off.' % vm.name)
+
         if self._wait_for_shutdown(vm):
             return False, dict(changed = True, msg = 'Successfully shutdown %s' % vm.name)
         else:
