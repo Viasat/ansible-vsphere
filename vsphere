@@ -36,6 +36,7 @@ import time
 import atexit
 import urllib2
 import datetime
+import ast
 
 try:
     from pyVim.connect import SmartConnect, Disconnect
@@ -378,7 +379,12 @@ class Vsphere(object):
                 try:
                     spec[spec_name] = float(spec_value)
                 except (ValueError,TypeError):
-                    pass
+                    # Ansible returns bool as unicode
+                    try:
+                        if (spec_value == "True") or (spec_value == "False"):
+                            spec[spec_name] = ast.literal_eval(spec_value)
+                    except (ValueError,TypeError):
+                        pass
 
             # recursively update the values
             if spec_name == 'ManagedObjectReference':
