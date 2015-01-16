@@ -5,6 +5,7 @@ Ansible module to automate the vsphere api.
 
 This module uses the official VMWare python library https://github.com/vmware/pyvmomi.
 Current supported features:
+
 1. Power on, Guest Shutdown, Power off VMs
 2. Create, Delete, Clone VMs
 3. Upgrade VMWare Tools

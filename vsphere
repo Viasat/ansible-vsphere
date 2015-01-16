@@ -159,7 +159,15 @@ options:
               update process can even substitute Managed Object References
               through the special syntax.
               C( { "ManagedObjectReference" : { "type": "MOR TYPE", "name" : "MOR NAME" } } )
-              See the Clone VM example for a fairly ful example.
+
+	      Sometimes managed objects are named the same across multiple parent objects.
+	      For instance you may have two clusters setup within a datacenter each with 
+	      a resource pool named Resources. In order to match the correct resource pool
+	      you can add a limit to the ManagedObjectReference definition so that the MOR 
+	      will be looked up relative to another Managed object. 
+
+              See the Clone VM example for a fairly ful example including an example of a 
+	      managed object reference with a limit.
         required: False
         default: null
 
@@ -246,6 +254,17 @@ EXAMPLES = '''
                   ManagedObjectReference:
                     type: ResourcePool
                     name: Resources
+                    limit:
+                      type: ComputeResource
+                      name: '{{ compute_resource }}'
+                host:
+                  ManagedObjectReference:
+                    type: HostSystem
+                    name: '{{ compute_resource }}'
+                datastore:
+                  ManagedObjectReference:
+                    type: Datastore
+                    name: '{{ datastore }}'
             powerOn: False
             template: False
 
@@ -329,14 +348,20 @@ class Vsphere(object):
             out = '%s did not complete successfully: %s' %(task.info.task,
                 task.info.error.msg)
 
-        return failed, out
+        return failed, out, task
 
-    def get_container_view(self, vimtype, name = None, recurse = True):
+    def get_container_view(self, vimtype, name = None, recurse = True, limit = None):
         """
         Get vsphere object(s), if name is not None, return the first object found.
+
+	limit will change the root directory to search for the vsphere object from.
         """
-        container = self.content.viewManager.CreateContainerView(
-                self.content.rootFolder, vimtype, recurse)
+        if isinstance(limit, dict):
+            limit = self.get_container_view( [getattr(vim, limit['type'])], limit['name'] )
+        else:
+            limit = self.content.rootFolder
+
+        container = self.content.viewManager.CreateContainerView(limit, vimtype, recurse)
         if name is not None:
             return [ c for c in container.view if c.name == name ][0]
 
@@ -388,9 +413,13 @@ class Vsphere(object):
 
             # recursively update the values
             if spec_name == 'ManagedObjectReference':
-                return self.get_container_view(
-                        [getattr(vim, spec_value['type'])],
-                        spec_value['name'] )
+                try:
+                    return self.get_container_view([getattr(vim, spec_value['type'])],
+                                                    spec_value['name'],
+                                                    limit = spec_value.get('limit', None))
+                except IndexError:
+                    self.module.fail_json(msg = 'Failed to find %s within %s'
+                        %(spec_value['name'], spec_value.get('limit', 'root')))
             if isinstance(spec_value, dict):
                 spec[spec_name] = self.update_spec(spec_value)
             if isinstance(spec_value, list):
@@ -429,15 +458,19 @@ class Vsphere(object):
         if vm.runtime.powerState == 'poweredOn':
             return False, dict(changed = False, msg = '%s is already powered on.' % vm.name)
         task = vm.PowerOn()
-        worked, msg = self._wait_task(task)
+        worked, msg, _ = self._wait_task(task)
         return worked, dict(changed = True, msg = msg)
 
     def stop(self, vm):
 
         if vm.runtime.powerState == 'poweredOff':
-            return True, dict(msg = '%s is already powered off.' % vm.name)
+            return False, dict(msg = '%s is already powered off.' % vm.name)
+
         task = vm.PowerOff()
-        worked, msg = self._wait_task(task)
+        worked, msg, task = self._wait_task(task)
+        if isinstance( task.info.error, vim.fault.InvalidPowerState ):
+            return False, dict(msg = '%s is already powered off.' % vm.name)
+
         return worked, dict(changed = True, msg = msg)
 
     def shutdown(self, vm, force = False):
@@ -508,7 +541,7 @@ class Vsphere(object):
         task = vm.CreateSnapshot(name = name, description = description,
                                  memory = memory, quiesce = quiesce)
 
-        failed, out = self._wait_task(task)
+        failed, out, _ = self._wait_task(task)
         return failed, dict(changed = True, msg = out)
 
     def remove_snapshot(self, vm, name, remove_children = False):
@@ -520,7 +553,7 @@ class Vsphere(object):
                 msg = '%s does not have a snapshot by the name %s' %(vm.name, name))
 
         task = snap.snapshot.Remove(removeChildren = remove_children)
-        failed, out = self._wait_task(task)
+        failed, out, _ = self._wait_task(task)
         return failed, dict(changed = True, msg = out)
 
     def revert_snapshot(self, vm, name = None, suppress_power_on = False):
@@ -534,7 +567,7 @@ class Vsphere(object):
                     msg = 'Snapshot named "%s" does not exist' %(name))
             task = snap.snapshot.Revert(suppressPowerOn = suppress_power_on)
 
-        failed, out = self._wait_task(task)
+        failed, out, _ = self._wait_task(task)
         return failed, dict(changed = True, msg = out)
 
 ################################################################################
@@ -545,7 +578,8 @@ class Vsphere(object):
 
         failed = False
         parent = self.get_container_view([vim.Folder],
-                folder.get('parent', 'Datacenters'))
+                folder.get('parent', 'Datacenters'),
+                limit = {'type': 'Datacenter', 'name': self.datacenter.name })
         try:
             f = parent.CreateFolder(folder['name'])
         except vim.fault.DuplicateName as e:
@@ -565,7 +599,7 @@ class Vsphere(object):
 
         f = self.get_container_view([vim.Folder], folder['name'])
         task = f.Destroy()
-        failed, out = self._wait_task(task)
+        failed, out, _ = self._wait_task(task)
         return failed, dict(changed = True, msg = out)
 
 ################################################################################
@@ -577,7 +611,7 @@ class Vsphere(object):
         spec_value = spec.get('value', {})
         self.update_spec(spec_value)
         task = getattr(vm, task_name)(**spec_value)
-        failed, out = self._wait_task(task)
+        failed, out, _ = self._wait_task(task)
         return failed, dict(changed = True, msg = out)
 
     def upgrade_tools(self, vm):
@@ -621,7 +655,7 @@ class Vsphere(object):
                 msg = 'Could not find the folder "%s"' % guest['folder'])
 
         task = folder.CreateVm(vm_confspec, rp)
-        failed, out = self._wait_task(task)
+        failed, out, _ = self._wait_task(task)
         return failed, dict(changed = True, msg = out)
 
     def clone_vm(self, guest, spec, devices = None ):
@@ -646,7 +680,7 @@ class Vsphere(object):
                 msg = 'Could not find the folder "%s"' % guest['folder'])
 
         task = parent.Clone(folder, guest['name'], vm_clonespec)
-        failed, out = self._wait_task(task)
+        failed, out, _ = self._wait_task(task)
         return failed, dict(changed = True, msg = out)
 
 ################################################################################
@@ -799,6 +833,8 @@ def core(module):
     if snapshot:
         if guest is None:
             module.fail_json(msg='The guest option needs to be specified')
+        if not exists:
+            module.fail_json(msg='The vm %s does not exist.' % guest['name'])
 
         try:
             snapshot_action = snapshot['action']
@@ -877,6 +913,7 @@ def main():
             login = dict(required=True),
             password = dict(required=True),
             guest = dict(type='dict'),
+            datacenter = dict(type = 'str'),
             folder = dict(type='dict'),
             snapshot = dict(type='dict'),
             guest_operations_manager = dict(),
@@ -891,8 +928,7 @@ def main():
         failed, result = core(module)
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        module.fail_json(msg = '%s: %s' %(e.__class__.__name__, str(e)))
+        module.fail_json(msg = '%s: %s\n%s' %(e.__class__.__name__, str(e), traceback.format_exc()))
 
     if failed:
         module.fail_json(**result)
