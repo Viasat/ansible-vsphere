@@ -30,6 +30,11 @@ try:
 except ImportError:
     import simplejson as json
 
+
+import ssl
+	
+
+	
 import re
 import os
 import time
@@ -326,7 +331,11 @@ class Vsphere(object):
         login_username = module.params.get('login')
         login_password = module.params.get('password')
         self.timeout = module.params.get('timeout')
-
+	check_ssl=bool(module.params.get('checkssl'))
+		
+	if not check_ssl:
+		ssl._create_default_https_context = ssl._create_unverified_context
+		
         try:
             self.si = SmartConnect(host = self.vsphere_host, user = login_username, pwd = login_password)
         except:
@@ -911,6 +920,7 @@ def main():
             host = dict(required=True),
             login = dict(required=True),
             password = dict(required=True),
+	    checkssl=dict(required=False,default='true'),
             guest = dict(type='dict'),
             datacenter = dict(type = 'str'),
             folder = dict(type='dict'),
@@ -936,3 +946,4 @@ def main():
 
 from ansible.module_utils.basic import *
 main()
+
