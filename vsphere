@@ -30,11 +30,7 @@ try:
 except ImportError:
     import simplejson as json
 
-import re
-import os
-import time
 import atexit
-import urllib2
 import datetime
 import ast
 
@@ -335,7 +331,7 @@ class Vsphere(object):
         atexit.register(Disconnect, self.si)
 
     def _wait_task(self, task):
-        while task.info.state == vim.TaskInfo.State.running:
+        while (task.info.state != vim.TaskInfo.State.success and task.info.state != vim.TaskInfo.State.error):
             time.sleep(2)
 
         failed = False
@@ -344,8 +340,12 @@ class Vsphere(object):
                 ': %s' % task.info.result if task.info.result else '')
         else:
             failed = True
-            out = '%s did not complete successfully: %s' %(task.info.task,
-                task.info.error.msg)
+            if task.info.error:
+                out = '%s did not complete successfully: %s' %(task.info.task,
+                    task.info.error.msg)
+            else:
+                out = '%s did not complete successfully: with unknown error, state: %s' %(task.info.task,
+                                                                        task.info.state)
 
         return failed, out, task
 
@@ -362,7 +362,18 @@ class Vsphere(object):
 
         container = self.content.viewManager.CreateContainerView(limit, vimtype, recurse)
         if name is not None:
-            return [ c for c in container.view if c.name == name ][0]
+
+            def name_matches(child, name):
+                try:
+                    return child.name == name
+                except vmodl.fault.ManagedObjectNotFound:
+                    # This exception can be thrown (e.g. intermittently when creating multiple VMs in parallel)
+                    #   because we're trying to get properties of a child which is partway being created or deleted.
+                    # Ideally we'd like to check the name in a way which doesn't trigger exceptions, but for now
+                    #   we just ignore the exception to prevent it propagating and failing the module.
+                    return False
+
+            return [ c for c in container.view if name_matches(c, name)][0]
 
         return container.view
 
