@@ -30,9 +30,16 @@ try:
 except ImportError:
     import simplejson as json
 
+
+
+
+import re
+import os
+import ast
+import ssl
+import time
 import atexit
 import datetime
-import ast
 
 try:
     from pyVim.connect import SmartConnect, Disconnect
@@ -318,10 +325,14 @@ class Vsphere(object):
         self.changed = False
         self.module = module
 
-        self.vsphere_host  = module.params.get('host')
+        self.vsphere_host = module.params.get('host')
         login_username = module.params.get('login')
         login_password = module.params.get('password')
         self.timeout = module.params.get('timeout')
+        check_ssl = bool(module.params.get('checkssl'))
+
+        if not check_ssl:
+            ssl._create_default_https_context = ssl._create_unverified_context
 
         try:
             self.si = SmartConnect(host = self.vsphere_host, user = login_username, pwd = login_password)
@@ -922,6 +933,7 @@ def main():
             host = dict(required=True),
             login = dict(required=True),
             password = dict(required=True),
+	    checkssl=dict(required=False,default='true'),
             guest = dict(type='dict'),
             datacenter = dict(type = 'str'),
             folder = dict(type='dict'),
@@ -947,3 +959,4 @@ def main():
 
 from ansible.module_utils.basic import *
 main()
+
