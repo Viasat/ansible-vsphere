@@ -40,6 +40,7 @@ import ssl
 import time
 import atexit
 import datetime
+import copy
 
 try:
     from pyVim.connect import SmartConnect, Disconnect
@@ -228,6 +229,14 @@ EXAMPLES = '''
         guest:
             name: guest_name
             state: running
+
+    - name: Rename VM
+      local_action:
+        module: vsphere
+        guest:
+          name: guest_name
+          new_name: guest_new_name
+          action: rename
 
     - name: Clone VM
       local_action:
@@ -704,6 +713,14 @@ class Vsphere(object):
         failed, out, _ = self._wait_task(task)
         return failed, dict(changed = True, msg = out)
 
+    def rename_vm(self, vm, new_name):
+        if new_name is None:
+            return True, dict(msg = 'The new vm name needs to be specified')
+        task = vm.Rename(new_name)
+        failed, out, _ = self._wait_task(task)
+        return failed, dict(changed = True, msg = out)
+
+
 ################################################################################
 # Guest Operations Methods
 ################################################################################
@@ -824,7 +841,9 @@ def core(module):
     guest_operations_manager = module.params.get('guest_operations_manager', None)
     put_file = module.params.get('put_file', None)
     get_file = module.params.get('get_file', None)
-    spec = module.params.get('spec', {})
+    spec_param = module.params.get('spec', {})
+    spec = copy.deepcopy(spec_param)
+
     folder = module.params.get('folder', dict())
 
     v = Vsphere(module)
@@ -910,6 +929,9 @@ def core(module):
                 return v.upgrade_tools(vm)
             elif action == 'task':
                 return v.run_task(vm, spec)
+            elif action == 'rename':
+                new_name = guest.get('new_name', None)
+                return v.rename_vm(vm, new_name)
         else:
             if guest_state == 'process':
                 return v.start_process(guest, spec)
