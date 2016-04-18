@@ -1,3 +1,5 @@
+**WARNING** -- I no longer work with vsphere. I will continue to accept pull requests and try to code review them by eye, but nothing is getting tested by me directly. I don't have a lot of time to answer to many questions and its really difficult for me to give examples of things that I have not actually done myself. 
+
 ansible-vsphere
 ===============
 
