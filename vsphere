@@ -30,9 +30,6 @@ try:
 except ImportError:
     import simplejson as json
 
-
-
-
 import re
 import os
 import ast
@@ -955,7 +952,7 @@ def main():
             host = dict(required=True),
             login = dict(required=True),
             password = dict(required=True),
-	    checkssl=dict(required=False,default='true'),
+            checkssl=dict(required=False,default='true'),
             guest = dict(type='dict'),
             datacenter = dict(type = 'str'),
             folder = dict(type='dict'),
@@ -964,7 +961,8 @@ def main():
             put_file = dict(),
             get_file = dict(),
             spec = dict(type = 'dict'),
-            timeout = dict(type='int', default=60)
+            timeout = dict(type='int', default=60),
+            compute_resource = dict(type='str')
         )
     )
 
