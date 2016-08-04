@@ -160,14 +160,14 @@ options:
               update process can even substitute Managed Object References
               through the special syntax. C( { "ManagedObjectReference" : { "type": "MOR TYPE", "name" : "MOR NAME" } } )
 
-	      Sometimes managed objects are named the same across multiple parent objects.
-	      For instance you may have two clusters setup within a datacenter each with
-	      a resource pool named Resources. In order to match the correct resource pool
-	      you can add a limit to the ManagedObjectReference definition so that the MOR
-	      will be looked up relative to another Managed object.
+          Sometimes managed objects are named the same across multiple parent objects.
+          For instance you may have two clusters setup within a datacenter each with
+          a resource pool named Resources. In order to match the correct resource pool
+          you can add a limit to the ManagedObjectReference definition so that the MOR
+          will be looked up relative to another Managed object.
 
               See the Clone VM example for a fairly ful example including an example of a
-	      managed object reference with a limit.'
+          managed object reference with a limit.'
         required: False
         default: null
 
@@ -337,11 +337,22 @@ class Vsphere(object):
         self.timeout = module.params.get('timeout')
         check_ssl = bool(module.params.get('checkssl'))
 
+        #####################################
+        #                                   #
+        # SSL cert support for pyvmomi 6.0+ #
+        #                                   #
+        #####################################
+
+
+        context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+        context.verify_mode = ssl.CERT_NONE
+
+
         if not check_ssl:
             ssl._create_default_https_context = ssl._create_unverified_context
 
         try:
-            self.si = SmartConnect(host = self.vsphere_host, user = login_username, pwd = login_password)
+            self.si = SmartConnect(host = self.vsphere_host, user = login_username, pwd = login_password, sslContext=context)
         except:
             self.module.fail_json(msg = 'Could not connect to host %s' % self.vsphere_host)
 
@@ -370,7 +381,7 @@ class Vsphere(object):
         """
         Get vsphere object(s), if name is not None, return the first object found.
 
-	limit will change the root directory to search for the vsphere object from.
+    limit will change the root directory to search for the vsphere object from.
         """
         if isinstance(limit, dict):
             limit = self.get_container_view( [getattr(vim, limit['type'])], limit['name'] )
@@ -979,4 +990,3 @@ def main():
 
 from ansible.module_utils.basic import *
 main()
-
