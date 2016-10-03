@@ -962,7 +962,7 @@ def main():
         argument_spec = dict(
             host = dict(required=True),
             login = dict(required=True),
-            password = dict(required=True),
+            password = dict(required=True, no_log=True),
             checkssl=dict(required=False,default='true'),
             guest = dict(type='dict'),
             datacenter = dict(type = 'str'),
